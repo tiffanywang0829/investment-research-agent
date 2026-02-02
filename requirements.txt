@@ -2,3 +2,5 @@ google-adk
 alpha-vantage
 python-dotenv==1.0.0
 requests
+pandas
+google-cloud-discoveryengine
