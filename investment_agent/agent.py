@@ -5,6 +5,7 @@ Uses Alpha Vantage API for reliable stock data.
 """
 
 import os
+import tempfile
 from typing import Dict, Any
 from google.adk.agents.llm_agent import Agent
 from google.cloud import discoveryengine_v1beta as discoveryengine
@@ -14,6 +15,20 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Handle Google Cloud credentials for production (Render)
+# If GOOGLE_APPLICATION_CREDENTIALS_JSON is set, write it to a temp file
+credentials_json = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+if credentials_json:
+    try:
+        # Create a temporary file to store credentials
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+            f.write(credentials_json)
+            credentials_path = f.name
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        print(f"✓ Google Cloud credentials loaded from environment variable")
+    except Exception as e:
+        print(f"⚠ Warning: Could not process GCP credentials: {e}")
 
 # Configure Vertex AI Search to connect to your data store
 # Get configuration from environment variables
@@ -58,8 +73,8 @@ def search_investment_research(query: str) -> Dict[str, Any]:
     """
     if not vertex_search_available:
         return {
-            "status": "error",
-            "message": "Vertex AI Search is not configured. Set up your credentials in .env file."
+            "status": "info",
+            "message": "Vertex AI Search is not available. The agent will continue without research context grounding. This feature requires Google Cloud authentication which is configured for local development only."
         }
 
     try:

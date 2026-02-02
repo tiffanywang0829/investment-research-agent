@@ -17,3 +17,5 @@ services:
         sync: false
       - key: VERTEX_DATA_STORE_ID
         sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false
