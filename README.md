@@ -1,308 +1,119 @@
 # Investment Research Agent
 
-An AI-powered investment research assistant built with **Google's Agent Development Kit (ADK)**. This agent helps you analyze stocks, compare investments, and research market trends using real-time financial data and AI analysis.
+An AI-powered investment research agent built with Google Agent Development Kit (ADK) that analyzes stocks using real-time market data and a custom investment framework.
 
 ## Features
 
-- **Real-time Stock Analysis**: Get current prices, performance metrics, and trends
-- **Fundamental Analysis**: Access key financial metrics (P/E ratio, market cap, revenue growth, etc.)
-- **Stock Comparison**: Compare multiple stocks side-by-side
-- **News Integration**: Get recent news headlines for any stock
-- **AI-Powered Insights**: Google's Gemini AI analyzes data and provides actionable insights
-- **Interactive Web UI**: Official Google ADK web interface for easy interaction
+- **4-Point Investment Checklist Framework** - Analyzes companies based on velocity of change and sustainability
+- **Real-time Stock Data** - Integrates with Alpha Vantage API for current market data
+- **Investment Research Context** - Uses Vertex AI Search to query research frameworks and analysis from cloud storage
+- **Comprehensive Financial Analysis** - Evaluates valuation metrics, growth trends, and investment criteria
 
-## Prerequisites
+## Tools Available
 
-- Python 3.10 or higher
-- Google API Key (get one at [Google AI Studio](https://aistudio.google.com/apikey))
+The agent has access to 13 specialized tools:
+1. Financial data retrieval (stock prices, company overviews, income statements, balance sheets, cash flow)
+2. Financial calculations (valuation metrics, growth trends, investment screening)
+3. Investment research search (Vertex AI Search integration)
 
-## Quick Start
+## Quick Start - Local Development
 
-### 1. Navigate to the project directory
+### Prerequisites
+- Python 3.10+
+- Google Cloud account with Vertex AI Search configured
+- Alpha Vantage API key
+- Google AI API key
 
-```bash
-cd "/Users/tiffanywang/Desktop/AI/Retail Reserch Agent"
-```
+### Setup
 
-### 2. Activate the virtual environment
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/tiffanywang0829/investment-research-agent.git
+   cd investment-research-agent
+   ```
 
-```bash
-source venv/bin/activate
-```
+2. **Create virtual environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-### 3. Install dependencies (if not already installed)
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-```bash
-pip install -r requirements.txt
-```
+4. **Configure environment variables**
 
-### 4. Configure your Google API Key
+   Create a `.env` file in the project root:
+   ```
+   GOOGLE_API_KEY=your_google_api_key
+   ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
+   GCP_PROJECT_ID=your_gcp_project_id
+   VERTEX_LOCATION=us
+   VERTEX_DATA_STORE_ID=your_data_store_id
+   ```
 
-Your API key is already configured in `.env`. If you need to change it:
+5. **Run the agent locally**
+   ```bash
+   adk web investment_agent
+   ```
 
-```bash
-GOOGLE_API_KEY=your_api_key_here
-```
+   Access the UI at http://localhost:8080
 
-### 5. Run the agent
+## Running Evaluations
 
-Use the convenient run script:
-
-```bash
-./run.sh
-```
-
-Or run manually:
-
-```bash
-source venv/bin/activate
-adk web --port 8000
-```
-
-### 6. Open in browser
-
-Navigate to: **http://localhost:8000**
-
-You'll see the official Google ADK web interface!
-
-## How to Use
-
-### Example Queries
-
-**Stock Analysis:**
-- "What's the current price of Apple (AAPL)?"
-- "Analyze Microsoft (MSFT) for me - should I invest?"
-- "Get the fundamentals for Tesla (TSLA)"
-- "What are the key metrics for Nvidia (NVDA)?"
-
-**Stock Comparison:**
-- "Compare Apple and Microsoft"
-- "Which is better: Tesla or Ford?"
-- "Compare the fundamentals of GOOGL and META"
-
-**News & Trends:**
-- "What's the latest news on Apple?"
-- "Show me recent news for NVDA"
-
-**Sector Analysis:**
-- "Which tech stocks are performing well?"
-- "Analyze the AI chip sector"
-
-## Agent Tools
-
-The agent has access to these specialized tools:
-
-### Basic Tools
-
-**1. `get_stock_price(ticker)`**
-- Current price and daily/monthly changes
-- Recent high/low prices
-- Average trading volume
-- Performance percentages
-
-**2. `get_stock_fundamentals(ticker)`**
-- Company overview (name, sector, industry)
-- Valuation metrics (P/E, PEG, Price-to-Book)
-- Profitability (profit margin, EPS)
-- Analyst targets and 52-week range
-- Dividend yield and beta
-
-**3. `get_stock_info(ticker)`**
-- Combined overview with price and fundamentals
-- Quick snapshot for initial analysis
-
-**4. `compare_stocks(ticker1, ticker2)`**
-- Side-by-side comparison of two stocks
-- Price and fundamental data for both
-- Helpful for investment decisions
-
-### Advanced Financial Analysis Tools
-
-**5. `get_income_statement(ticker)`**
-- Total revenue and gross profit
-- Operating income and net income
-- EBITDA and EPS
-- Research & Development spending
-- Year-over-year comparisons
-
-**6. `get_balance_sheet(ticker)`**
-- Total assets and liabilities
-- Shareholder equity
-- Current assets vs. current liabilities
-- Cash and cash equivalents
-- Short-term and long-term debt
-- Financial health indicators
-
-**7. `get_cash_flow(ticker)`**
-- Operating cash flow
-- Capital expenditures
-- Free cash flow
-- Dividends paid
-- Cash position changes
-
-**8. `calculate_valuation_metrics(ticker)`**
-- Comprehensive valuation analysis
-- P/E ratio assessment (undervalued/overvalued)
-- Market cap and EPS analysis
-- Price-to-book and PEG ratios
-- Analyst price targets
-- Automated valuation commentary
-
-## Architecture
-
-### Google ADK Structure
-
-```
-Retail Research Agent/
-├── agent.py              # Main agent definition with tools
-├── __init__.py          # Package initialization
-├── .env                 # API key configuration
-├── requirements.txt     # Python dependencies
-├── run.sh              # Startup script
-└── README.md           # Documentation
-```
-
-### How It Works
-
-1. **User Query**: You ask a question in the web interface
-2. **Agent Processing**: The AI agent (Gemini 1.5 Flash) processes your question
-3. **Tool Selection**: The agent decides which tools to use (e.g., get_stock_price, get_stock_fundamentals)
-4. **Data Retrieval**: Tools fetch real-time data from Yahoo Finance
-5. **AI Analysis**: The agent analyzes the data and generates insights
-6. **Response**: You receive a comprehensive, data-driven answer
-
-## Command Line Interface
-
-You can also use the CLI instead of the web interface:
+Test the agent with evaluation sets:
 
 ```bash
-source venv/bin/activate
-adk run
+# Start the ADK web UI
+adk web
+
+# Navigate to http://localhost:8080
+# Go to Evaluations tab
+# Run Eval1 evaluation set
 ```
 
-Then type your questions directly in the terminal.
+Evaluation results are saved in `investment_agent/.adk/eval_history/`
 
-## Technologies Used
+## Deployment
 
-- **Google ADK**: Agent framework with built-in UI
-- **Google Gemini 1.5 Flash**: AI model for analysis
-- **yfinance**: Real-time stock market data
-- **Python 3.10+**: Core programming language
+See [README_RENDER.md](README_RENDER.md) for deployment instructions to Render.com.
 
-## Agent Capabilities
+## Project Structure
 
-The agent can:
-- ✅ Fetch real-time stock prices and performance metrics
-- ✅ Analyze fundamental financial data
-- ✅ Compare multiple stocks
-- ✅ Retrieve and summarize recent news
-- ✅ Provide investment insights based on data
-- ✅ Answer questions about market trends
-- ✅ Explain complex financial metrics
-
-## Important Disclaimers
-
-⚠️ **This tool provides information for research purposes only**
-- It does NOT provide financial advice
-- Always do your own due diligence before making investment decisions
-- The AI analysis should not be the sole factor in investment decisions
-- Market data may be delayed and may not reflect real-time prices
-- Past performance does not guarantee future results
-
-## Known Limitations
-
-### Yahoo Finance API Rate Limiting
-This agent uses the free Yahoo Finance API (via yfinance), which has the following limitations:
-
-- **Rate Limits**: Yahoo Finance may block requests if you make too many queries in a short time (Error 429)
-- **Data Availability**: Some tickers may not return data due to API issues
-- **Reliability**: The free API can be unreliable and may experience outages
-
-**If you encounter errors:**
-1. Wait a few minutes before making another request
-2. Verify the ticker symbol is correct (use Yahoo Finance website to confirm)
-3. Try a different, well-known ticker (e.g., AAPL, MSFT, GOOGL)
-4. The agent will still provide general analysis even when real-time data is unavailable
-
-**For production use**, consider:
-- Using a paid financial data API (Alpha Vantage, IEX Cloud, Polygon.io)
-- Implementing caching to reduce API calls
-- Adding rate limiting to your requests
-
-## Troubleshooting
-
-### "adk: command not found"
-Make sure you've activated the virtual environment:
-```bash
-source venv/bin/activate
+```
+investment-research-agent/
+├── investment_agent/
+│   ├── agent.py              # Main agent code with tools and logic
+│   ├── __init__.py           # Package initialization
+│   └── Eval1.evalset.json    # Evaluation test cases
+├── tests/
+│   ├── check_search_results.py
+│   ├── test_search.py
+│   └── test_search_debug.py
+├── requirements.txt          # Python dependencies
+├── .env                      # Environment variables (not in git)
+└── README.md                 # This file
 ```
 
-### "GOOGLE_API_KEY not configured"
-Check that your `.env` file exists and contains a valid API key.
+## Agent Architecture
 
-### Import errors
-Ensure all dependencies are installed:
-```bash
-pip install -r requirements.txt
-```
+The agent uses:
+- **Model**: Gemini 2.0 Flash (experimental)
+- **Backend**: Google Generative AI
+- **Memory**: Conversation history tracking
+- **Tools**: 13 specialized financial and research tools
 
-### Port already in use
-Change the port in `run.sh`:
-```bash
-adk web --port 8001
-```
+## Environment Variables
 
-## Advanced Usage
-
-### Custom Tools
-
-You can add more tools to `agent.py` by defining new functions and adding them to the `tools` list:
-
-```python
-def my_custom_tool(param: str) -> dict:
-    """Description of what this tool does."""
-    return {"result": "data"}
-
-root_agent = Agent(
-    model='gemini-1.5-flash',
-    name='investment_research_agent',
-    tools=[
-        get_stock_price,
-        get_stock_fundamentals,
-        my_custom_tool  # Add your tool here
-    ]
-)
-```
-
-### Changing the AI Model
-
-Edit `agent.py` to use a different model:
-
-```python
-root_agent = Agent(
-    model='gemini-1.5-pro',  # More capable but slower
-    # or 'gemini-2.0-flash-exp' for experimental features
-    ...
-)
-```
+Required:
+- `GOOGLE_API_KEY` - Google AI API key for Gemini models
+- `ALPHA_VANTAGE_API_KEY` - Alpha Vantage API for stock data
+- `GCP_PROJECT_ID` - Google Cloud project ID
+- `VERTEX_LOCATION` - Vertex AI region (e.g., "us")
+- `VERTEX_DATA_STORE_ID` - Vertex AI Search data store ID
 
 ## License
 
-This project is for educational and research purposes.
-
-## Learn More
-
-- [Google ADK Documentation](https://google.github.io/adk-docs/)
-- [Get Started with Python ADK](https://google.github.io/adk-docs/get-started/python/)
-- [Yahoo Finance API](https://pypi.org/project/yfinance/)
-
-## Support
-
-For issues or questions:
-1. Check the [Google ADK docs](https://google.github.io/adk-docs/)
-2. Ensure your environment is properly set up
-3. Verify your API key is valid
-
----
-
-**Built with Google's Agent Development Kit (ADK)**
+Private research project
