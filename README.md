@@ -21,8 +21,8 @@ The agent has access to 13 specialized tools:
 ### Prerequisites
 - Python 3.10+
 - Google Cloud account with Vertex AI Search configured
-- Alpha Vantage API key
 - Google AI API key
+- Financial Modeling Prep API key (free - 250 calls/day)
 
 ### Setup
 
@@ -48,11 +48,13 @@ The agent has access to 13 specialized tools:
    Create a `.env` file in the project root:
    ```
    GOOGLE_API_KEY=your_google_api_key
-   ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
+   FMP_API_KEY=your_fmp_api_key
    GCP_PROJECT_ID=your_gcp_project_id
    VERTEX_LOCATION=us
    VERTEX_DATA_STORE_ID=your_data_store_id
    ```
+
+   Get your free FMP API key: https://financialmodelingprep.com/developer/docs/
 
 5. **Run the agent locally**
    ```bash
@@ -109,7 +111,7 @@ The agent uses:
 
 Required:
 - `GOOGLE_API_KEY` - Google AI API key for Gemini models
-- `ALPHA_VANTAGE_API_KEY` - Alpha Vantage API for stock data
+- `FMP_API_KEY` - Financial Modeling Prep API key (free tier: 250 calls/day) - Get at https://financialmodelingprep.com/developer/docs/
 - `GCP_PROJECT_ID` - Google Cloud project ID
 - `VERTEX_LOCATION` - Vertex AI region (e.g., "us")
 - `VERTEX_DATA_STORE_ID` - Vertex AI Search data store ID

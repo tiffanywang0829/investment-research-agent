@@ -29,7 +29,7 @@ except Exception as e:
 print()
 
 # Test 3: Check environment variables
-required_vars = ["GOOGLE_API_KEY", "ALPHA_VANTAGE_API_KEY", "GCP_PROJECT_ID"]
+required_vars = ["GOOGLE_API_KEY", "FMP_API_KEY", "GCP_PROJECT_ID"]
 print("Environment variables:")
 for var in required_vars:
     value = os.environ.get(var)

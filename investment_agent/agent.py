@@ -1,16 +1,15 @@
 """
 Investment Research Agent using Google's Agent Development Kit (ADK)
 This agent helps analyze stocks and assets for investment decisions.
-Uses Alpha Vantage API for reliable stock data.
+Uses Financial Modeling Prep API for reliable stock data (250 free calls/day).
 """
 
 import os
 import tempfile
 from typing import Dict, Any
+import requests
 from google.adk.agents.llm_agent import Agent
 from google.cloud import discoveryengine_v1beta as discoveryengine
-from alpha_vantage.timeseries import TimeSeries
-from alpha_vantage.fundamentaldata import FundamentalData
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -136,7 +135,7 @@ def search_investment_research(query: str) -> Dict[str, Any]:
 
 def get_stock_price(ticker: str) -> Dict[str, Any]:
     """
-    Get current stock price and recent performance data using Alpha Vantage.
+    Get current stock price and recent performance data using Financial Modeling Prep (250 free calls/day).
 
     Args:
         ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT', 'GOOGL')
@@ -145,52 +144,45 @@ def get_stock_price(ticker: str) -> Dict[str, Any]:
         Dictionary containing current price, change, and performance metrics
     """
     try:
-        api_key = os.getenv('ALPHA_VANTAGE_API_KEY', 'demo')
-        ts = TimeSeries(key=api_key, output_format='pandas')
+        api_key = os.getenv('FMP_API_KEY', 'demo')
 
-        # Get daily data
-        data, meta_data = ts.get_daily(symbol=ticker, outputsize='compact')
+        # Get real-time quote using stable endpoint
+        quote_url = f"https://financialmodelingprep.com/stable/quote?symbol={ticker}&apikey={api_key}"
+        response = requests.get(quote_url)
+        response.raise_for_status()
+        quote_data = response.json()
 
-        if data.empty:
+        if not quote_data or len(quote_data) == 0:
             return {
                 "status": "error",
                 "message": f"No price data found for {ticker}. Please verify the ticker symbol."
             }
 
-        # Get latest and previous prices
-        latest_close = float(data['4. close'].iloc[0])
-        previous_close = float(data['4. close'].iloc[1])
-        month_ago_close = float(data['4. close'].iloc[-1])
-
-        change_1day = latest_close - previous_close
-        change_1day_pct = (change_1day / previous_close) * 100
-
-        change_1month = latest_close - month_ago_close
-        change_1month_pct = (change_1month / month_ago_close) * 100
+        data = quote_data[0]
 
         return {
             "status": "success",
             "ticker": ticker.upper(),
-            "current_price": round(latest_close, 2),
-            "change_1day": round(change_1day, 2),
-            "change_1day_percent": round(change_1day_pct, 2),
-            "change_1month": round(change_1month, 2),
-            "change_1month_percent": round(change_1month_pct, 2),
-            "high_recent": round(float(data['2. high'].max()), 2),
-            "low_recent": round(float(data['3. low'].min()), 2),
-            "average_volume": int(data['5. volume'].mean())
+            "current_price": round(float(data.get('price', 0)), 2),
+            "change_1day": round(float(data.get('change', 0)), 2),
+            "change_1day_percent": round(float(data.get('changesPercentage', 0)), 2),
+            "high_recent": round(float(data.get('yearHigh', 0)), 2),
+            "low_recent": round(float(data.get('yearLow', 0)), 2),
+            "average_volume": int(data.get('avgVolume', 0)),
+            "market_cap": data.get('marketCap', 'N/A'),
+            "pe_ratio": data.get('pe', 'N/A')
         }
 
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Error fetching price data for {ticker}: {str(e)}. If using demo API key, note that it has limited tickers."
+            "message": f"Error fetching price data for {ticker}: {str(e)}"
         }
 
 
 def get_stock_fundamentals(ticker: str) -> Dict[str, Any]:
     """
-    Get fundamental financial metrics for a stock using Alpha Vantage.
+    Get fundamental financial metrics for a stock using Financial Modeling Prep (250 free calls/day).
 
     Args:
         ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT', 'GOOGL')
@@ -199,46 +191,44 @@ def get_stock_fundamentals(ticker: str) -> Dict[str, Any]:
         Dictionary containing key financial metrics and company information
     """
     try:
-        api_key = os.getenv('ALPHA_VANTAGE_API_KEY', 'demo')
-        fd = FundamentalData(key=api_key, output_format='pandas')
+        api_key = os.getenv('FMP_API_KEY', 'demo')
 
-        # Get company overview
-        data, meta_data = fd.get_company_overview(symbol=ticker)
+        # Get company profile using stable endpoint
+        profile_url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={api_key}"
+        response = requests.get(profile_url)
+        response.raise_for_status()
+        profile_data = response.json()
 
-        if data.empty:
+        if not profile_data or len(profile_data) == 0:
             return {
                 "status": "error",
                 "message": f"No fundamental data found for {ticker}."
             }
 
-        # Extract data (Alpha Vantage returns a single-row DataFrame)
-        info = data.iloc[0]
+        data = profile_data[0]
 
         return {
             "status": "success",
             "ticker": ticker.upper(),
-            "company_name": info.get('Name', 'N/A'),
-            "sector": info.get('Sector', 'N/A'),
-            "industry": info.get('Industry', 'N/A'),
-            "market_cap": info.get('MarketCapitalization', 'N/A'),
-            "pe_ratio": info.get('PERatio', 'N/A'),
-            "forward_pe": info.get('ForwardPE', 'N/A'),
-            "peg_ratio": info.get('PEGRatio', 'N/A'),
-            "price_to_book": info.get('PriceToBookRatio', 'N/A'),
-            "dividend_yield": info.get('DividendYield', 'N/A'),
-            "beta": info.get('Beta', 'N/A'),
-            "profit_margin": info.get('ProfitMargin', 'N/A'),
-            "revenue_growth": info.get('QuarterlyRevenueGrowthYOY', 'N/A'),
-            "eps": info.get('EPS', 'N/A'),
-            "analyst_target": info.get('AnalystTargetPrice', 'N/A'),
-            "52_week_high": info.get('52WeekHigh', 'N/A'),
-            "52_week_low": info.get('52WeekLow', 'N/A')
+            "company_name": data.get('companyName', 'N/A'),
+            "sector": data.get('sector', 'N/A'),
+            "industry": data.get('industry', 'N/A'),
+            "market_cap": data.get('mktCap', 'N/A'),
+            "pe_ratio": data.get('pe', 'N/A'),
+            "peg_ratio": 'N/A',  # Not in basic profile
+            "price_to_book": data.get('priceToBook', 'N/A'),
+            "dividend_yield": data.get('lastDiv', 'N/A'),
+            "beta": data.get('beta', 'N/A'),
+            "eps": 'N/A',  # Need separate call
+            "52_week_high": data.get('range', 'N/A'),
+            "52_week_low": data.get('range', 'N/A'),
+            "description": data.get('description', 'N/A')[:200] + '...' if data.get('description') else 'N/A'
         }
 
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Error fetching fundamentals for {ticker}: {str(e)}. If using demo API key, upgrade at alphavantage.co"
+            "message": f"Error fetching fundamentals for {ticker}: {str(e)}"
         }
 
 
@@ -309,7 +299,7 @@ def get_stock_info(ticker: str) -> Dict[str, Any]:
 
 def get_income_statement(ticker: str) -> Dict[str, Any]:
     """
-    Get the latest income statement data for a stock.
+    Get the latest income statement data for a stock using Financial Modeling Prep.
 
     Args:
         ticker: Stock ticker symbol
@@ -318,32 +308,33 @@ def get_income_statement(ticker: str) -> Dict[str, Any]:
         Dictionary with income statement data including revenue, profit, etc.
     """
     try:
-        api_key = os.getenv('ALPHA_VANTAGE_API_KEY', 'demo')
-        fd = FundamentalData(key=api_key, output_format='pandas')
+        api_key = os.getenv('FMP_API_KEY', 'demo')
 
-        # Get annual income statement
-        data, meta_data = fd.get_income_statement_annual(symbol=ticker)
+        # Get annual income statement using stable endpoint
+        url = f"https://financialmodelingprep.com/stable/income-statement?symbol={ticker}&apikey={api_key}"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
 
-        if data.empty:
+        if not data or len(data) == 0:
             return {
                 "status": "error",
                 "message": f"No income statement data found for {ticker}."
             }
 
-        # Get most recent year
-        latest = data.iloc[0]
+        latest = data[0]
 
         return {
             "status": "success",
             "ticker": ticker.upper(),
-            "fiscal_date": latest.get('fiscalDateEnding', 'N/A'),
-            "total_revenue": latest.get('totalRevenue', 'N/A'),
+            "fiscal_date": latest.get('date', 'N/A'),
+            "total_revenue": latest.get('revenue', 'N/A'),
             "gross_profit": latest.get('grossProfit', 'N/A'),
             "operating_income": latest.get('operatingIncome', 'N/A'),
             "net_income": latest.get('netIncome', 'N/A'),
             "ebitda": latest.get('ebitda', 'N/A'),
             "eps": latest.get('eps', 'N/A'),
-            "research_development": latest.get('researchAndDevelopment', 'N/A')
+            "research_development": latest.get('researchAndDevelopmentExpenses', 'N/A')
         }
 
     except Exception as e:
@@ -355,7 +346,7 @@ def get_income_statement(ticker: str) -> Dict[str, Any]:
 
 def get_balance_sheet(ticker: str) -> Dict[str, Any]:
     """
-    Get the latest balance sheet data for a stock.
+    Get the latest balance sheet data for a stock using Financial Modeling Prep.
 
     Args:
         ticker: Stock ticker symbol
@@ -364,31 +355,32 @@ def get_balance_sheet(ticker: str) -> Dict[str, Any]:
         Dictionary with balance sheet data including assets, liabilities, equity
     """
     try:
-        api_key = os.getenv('ALPHA_VANTAGE_API_KEY', 'demo')
-        fd = FundamentalData(key=api_key, output_format='pandas')
+        api_key = os.getenv('FMP_API_KEY', 'demo')
 
-        # Get annual balance sheet
-        data, meta_data = fd.get_balance_sheet_annual(symbol=ticker)
+        # Get annual balance sheet using stable endpoint
+        url = f"https://financialmodelingprep.com/stable/balance-sheet-statement?symbol={ticker}&apikey={api_key}"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
 
-        if data.empty:
+        if not data or len(data) == 0:
             return {
                 "status": "error",
                 "message": f"No balance sheet data found for {ticker}."
             }
 
-        # Get most recent year
-        latest = data.iloc[0]
+        latest = data[0]
 
         return {
             "status": "success",
             "ticker": ticker.upper(),
-            "fiscal_date": latest.get('fiscalDateEnding', 'N/A'),
+            "fiscal_date": latest.get('date', 'N/A'),
             "total_assets": latest.get('totalAssets', 'N/A'),
             "total_liabilities": latest.get('totalLiabilities', 'N/A'),
-            "total_shareholder_equity": latest.get('totalShareholderEquity', 'N/A'),
+            "total_shareholder_equity": latest.get('totalStockholdersEquity', 'N/A'),
             "current_assets": latest.get('totalCurrentAssets', 'N/A'),
             "current_liabilities": latest.get('totalCurrentLiabilities', 'N/A'),
-            "cash_and_equivalents": latest.get('cashAndCashEquivalentsAtCarryingValue', 'N/A'),
+            "cash_and_equivalents": latest.get('cashAndCashEquivalents', 'N/A'),
             "long_term_debt": latest.get('longTermDebt', 'N/A'),
             "short_term_debt": latest.get('shortTermDebt', 'N/A')
         }
@@ -402,7 +394,7 @@ def get_balance_sheet(ticker: str) -> Dict[str, Any]:
 
 def get_cash_flow(ticker: str) -> Dict[str, Any]:
     """
-    Get the latest cash flow statement data for a stock.
+    Get the latest cash flow statement data for a stock using Financial Modeling Prep.
 
     Args:
         ticker: Stock ticker symbol
@@ -411,31 +403,36 @@ def get_cash_flow(ticker: str) -> Dict[str, Any]:
         Dictionary with cash flow data
     """
     try:
-        api_key = os.getenv('ALPHA_VANTAGE_API_KEY', 'demo')
-        fd = FundamentalData(key=api_key, output_format='pandas')
+        api_key = os.getenv('FMP_API_KEY', 'demo')
 
-        # Get annual cash flow
-        data, meta_data = fd.get_cash_flow_annual(symbol=ticker)
+        # Get annual cash flow using stable endpoint
+        url = f"https://financialmodelingprep.com/stable/cash-flow-statement?symbol={ticker}&apikey={api_key}"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
 
-        if data.empty:
+        if not data or len(data) == 0:
             return {
                 "status": "error",
                 "message": f"No cash flow data found for {ticker}."
             }
 
-        # Get most recent year
-        latest = data.iloc[0]
+        latest = data[0]
+
+        # Calculate free cash flow
+        ocf = latest.get('operatingCashFlow', 0)
+        capex = latest.get('capitalExpenditure', 0)
+        free_cf = ocf - abs(capex) if ocf and capex else latest.get('freeCashFlow', 'N/A')
 
         return {
             "status": "success",
             "ticker": ticker.upper(),
-            "fiscal_date": latest.get('fiscalDateEnding', 'N/A'),
-            "operating_cash_flow": latest.get('operatingCashflow', 'N/A'),
-            "capital_expenditures": latest.get('capitalExpenditures', 'N/A'),
-            # Can calculate: OCF - CapEx
-            "free_cash_flow": latest.get('operatingCashflow', 'N/A'),
-            "dividends_paid": latest.get('dividendPayout', 'N/A'),
-            "change_in_cash": latest.get('changeInCashAndCashEquivalents', 'N/A')
+            "fiscal_date": latest.get('date', 'N/A'),
+            "operating_cash_flow": ocf,
+            "capital_expenditures": capex,
+            "free_cash_flow": free_cf,
+            "dividends_paid": latest.get('dividendsPaid', 'N/A'),
+            "change_in_cash": latest.get('netChangeInCash', 'N/A')
         }
 
     except Exception as e:
@@ -849,15 +846,16 @@ Good Business vs. Good Investment: A good business becomes a good investment onl
 
 
 IMPORTANT - About the Data Source:
-- This agent uses Alpha Vantage API for stock data
-- For full access to all tickers, users need a free API key from alphavantage.co
-- If tools return errors (status: "error"), acknowledge this and suggest getting a free API key
+- This agent uses Financial Modeling Prep API for stock data (250 free API calls per day)
+- Get a free API key at financialmodelingprep.com (takes 1 minute to register)
+- If tools return errors (status: "error"), it may be due to invalid ticker symbols, API rate limits, or temporary data unavailability
 - Still provide general investment insights when data isn't available
 - Use reputable data source for financials like sales / same store sales / margins / cash flow / etc. Sources I like include earnings releases / transcripts / 10-Ks / 10-Qs etc.
 
 When tools fail:
-- Explain the limitation (demo key or API issue)
-- Suggest getting a free API key from alphavantage.co
+- Verify the ticker symbol is correct
+- Check if daily API limit (250 calls) has been reached
+- Suggest checking if the company is publicly traded
 - Provide general analysis based on your knowledge
 
 Remember: Always check the "status" field in tool responses before using the data.
