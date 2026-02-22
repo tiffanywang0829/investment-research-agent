@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nMigrate to Financial Modeling Prep stable API endpoints\n\n- Replace legacy Alpha Vantage API with FMP \\(250 free calls/day\\)\n- Update all financial data functions to use /stable/ endpoints\n- Fix 403 Forbidden error by using new FMP API structure\n- Update documentation and deployment configs\n- Remove alpha-vantage dependency from requirements\n\nAll functions tested and working with AAPL ticker.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}

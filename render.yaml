@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python test_discovery.py && adk web . --host 0.0.0.0 --port $PORT
+    startCommand: adk web . --host 0.0.0.0 --port $PORT
     envVars:
       - key: GOOGLE_API_KEY
         sync: false
@@ -16,6 +16,8 @@ services:
       - key: VERTEX_LOCATION
         sync: false
       - key: VERTEX_DATA_STORE_ID
+        sync: false
+      - key: TAVILY_API_KEY
         sync: false
       - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
         sync: false

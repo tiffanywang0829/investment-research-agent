@@ -52,9 +52,16 @@ The agent has access to 13 specialized tools:
    GCP_PROJECT_ID=your_gcp_project_id
    VERTEX_LOCATION=us
    VERTEX_DATA_STORE_ID=your_data_store_id
+
+   # Optional: For web search capability
+   GOOGLE_SEARCH_API_KEY=your_google_search_api_key
+   GOOGLE_SEARCH_ENGINE_ID=your_search_engine_id
    ```
 
-   Get your free FMP API key: https://financialmodelingprep.com/developer/docs/
+   **Get your API keys:**
+   - FMP API (required): https://financialmodelingprep.com/developer/docs/
+   - Google Search API (optional): https://developers.google.com/custom-search/v1/overview
+   - Create Search Engine (optional): https://programmablesearchengine.google.com/
 
 5. **Run the agent locally**
    ```bash
@@ -104,8 +111,8 @@ investment-research-agent/
 The agent uses:
 - **Model**: Gemini 2.0 Flash (experimental)
 - **Backend**: Google Generative AI
-- **Memory**: Conversation history tracking
-- **Tools**: 13 specialized financial and research tools
+- **Memory**: Conversation history tracking with self-critique
+- **Tools**: 14 specialized financial and research tools
 
 ## Environment Variables
 
@@ -115,6 +122,10 @@ Required:
 - `GCP_PROJECT_ID` - Google Cloud project ID
 - `VERTEX_LOCATION` - Vertex AI region (e.g., "us")
 - `VERTEX_DATA_STORE_ID` - Vertex AI Search data store ID
+
+Optional (for web search):
+- `GOOGLE_SEARCH_API_KEY` - Google Custom Search API key (100 free queries/day)
+- `GOOGLE_SEARCH_ENGINE_ID` - Programmable Search Engine ID
 
 ## License
 

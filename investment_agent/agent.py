@@ -7,6 +7,7 @@ Uses Financial Modeling Prep API for reliable stock data (250 free calls/day).
 import os
 import tempfile
 from typing import Dict, Any
+from datetime import datetime
 import requests
 from google.adk.agents.llm_agent import Agent
 from google.cloud import discoveryengine_v1beta as discoveryengine
@@ -95,27 +96,34 @@ def search_investment_research(query: str) -> Dict[str, Any]:
         request = discoveryengine.SearchRequest(
             serving_config=serving_config,
             query=query,
-            page_size=5,  # Get top 5 results
+            page_size=10,  # Get top 10 results for comprehensive research coverage
         )
 
         # Execute search
         response = client.search(request)
 
-        # Parse results
+        # Parse results with enhanced citation information
         results = []
-        for result in response.results:
+        for idx, result in enumerate(response.results, 1):
             doc_data = result.document.derived_struct_data
+
+            # Extract all available snippets for richer content
+            snippets = doc_data.get('snippets', [])
+            combined_content = ' ... '.join([s.get('snippet', '') for s in snippets if s.get('snippet')])
+
             results.append({
-                "title": doc_data.get('title', 'Untitled'),
-                "snippet": doc_data.get('snippets', [{}])[0].get('snippet', '') if doc_data.get('snippets') else '',
+                "citation_number": idx,
+                "title": doc_data.get('title', 'Untitled Research Document'),
+                "snippet": combined_content if combined_content else 'No preview available',
                 "link": doc_data.get('link', ''),
+                "source": "Vertex AI Search - Proprietary Research Database"
             })
 
         if not results:
             return {
                 "status": "success",
                 "query": query,
-                "message": "No results found for this query.",
+                "message": "No results found in your research database for this query. Consider using search_web for external sources.",
                 "results": []
             }
 
@@ -123,13 +131,94 @@ def search_investment_research(query: str) -> Dict[str, Any]:
             "status": "success",
             "query": query,
             "results_count": len(results),
-            "results": results
+            "results": results,
+            "note": "IMPORTANT: These are YOUR proprietary research documents. Always cite the document title and citation number when using insights from these results."
         }
 
     except Exception as e:
         return {
             "status": "error",
             "message": f"Error searching investment research: {str(e)}"
+        }
+
+
+def search_web(query: str, num_results: int = 5) -> Dict[str, Any]:
+    """
+    Search the web for investment news, analyst reports, and company information using Tavily.
+    Use this to find recent news, earnings announcements, analyst opinions, or industry trends.
+
+    Args:
+        query: Search query (e.g., "AAPL earnings", "Tesla news", "semiconductor industry trends")
+        num_results: Number of results to return (default 5, max 10)
+
+    Returns:
+        Dictionary with search results including titles, content summaries, and links
+    """
+    try:
+        from tavily import TavilyClient
+
+        api_key = os.getenv('TAVILY_API_KEY')
+
+        if not api_key or api_key == 'your_tavily_api_key_here':
+            return {
+                "status": "info",
+                "message": "Web search is not configured. Set TAVILY_API_KEY in .env to enable web search.",
+                "setup_url": "https://tavily.com"
+            }
+
+        # Limit results to prevent excessive API usage
+        num_results = min(num_results, 10)
+
+        # Initialize Tavily client
+        client = TavilyClient(api_key=api_key)
+
+        # Perform search with options optimized for investment research
+        response = client.search(
+            query=query,
+            max_results=num_results,
+            search_depth="advanced",  # More comprehensive results
+            include_raw_content=False,  # Get cleaned content
+            include_domains=None,  # Search all domains
+            exclude_domains=None
+        )
+
+        if not response.get('results'):
+            return {
+                "status": "success",
+                "query": query,
+                "message": "No results found for this query.",
+                "results": []
+            }
+
+        # Parse results
+        results = []
+        for item in response['results']:
+            results.append({
+                "title": item.get('title', 'No title'),
+                # Tavily provides cleaned, summarized content
+                "content": item.get('content', 'No content'),
+                "snippet": item.get('content', '')[:200] + '...' if len(item.get('content', '')) > 200 else item.get('content', ''),
+                "link": item.get('url', ''),
+                "score": item.get('score', 0)  # Relevance score from Tavily
+            })
+
+        return {
+            "status": "success",
+            "query": query,
+            "results_count": len(results),
+            "results": results,
+            "note": "Tavily provides AI-optimized search results with cleaned content. Use these sources to gather recent news, earnings info, and company context."
+        }
+
+    except ImportError:
+        return {
+            "status": "error",
+            "message": "Tavily library not installed. Run: pip install tavily-python"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error searching web with Tavily: {str(e)}"
         }
 
 
@@ -422,7 +511,8 @@ def get_cash_flow(ticker: str) -> Dict[str, Any]:
         # Calculate free cash flow
         ocf = latest.get('operatingCashFlow', 0)
         capex = latest.get('capitalExpenditure', 0)
-        free_cf = ocf - abs(capex) if ocf and capex else latest.get('freeCashFlow', 'N/A')
+        free_cf = ocf - \
+            abs(capex) if ocf and capex else latest.get('freeCashFlow', 'N/A')
 
         return {
             "status": "success",
@@ -802,10 +892,18 @@ def investment_checklist_screen(ticker: str) -> Dict[str, Any]:
 # Create the root agent with investment research tools
 # Note: Vertex AI Search tool requires vertex AI backend, not Gemini API
 # Temporarily disable the search tool until we can configure Vertex AI properly
+
+# Get current date/time for context
+current_datetime = datetime.now().strftime("%B %d, %Y at %I:%M %p %Z")
+current_year = datetime.now().year
+
 root_agent = Agent(
-    model='gemini-3-flash-preview',  # Use stable Gemini 1.5 model
+    model='gemini-3.1-pro-preview',
     name='investment_research_agent',
-    instruction="""
+    instruction=f"""
+CURRENT DATE & TIME: {current_datetime}
+CURRENT YEAR: {current_year}
+
 Role: You are a Fundamental Equity Analyst at a long-term focused hedge fund. Your objective is to rigorously evaluate investment targets by synthesizing quantitative data with qualitative judgment.
 
 Research Protocol: As a rule of thumb for all company analysis, reference the following primary sources:
@@ -845,35 +943,95 @@ Expectations Mismatch: What is the market pricing in versus your view of the "Fu
 Good Business vs. Good Investment: A good business becomes a good investment only when the future earnings power is under-appreciated by the current price.
 
 
-IMPORTANT - About the Data Source:
-- This agent uses Financial Modeling Prep API for stock data (250 free API calls per day)
-- Get a free API key at financialmodelingprep.com (takes 1 minute to register)
+CRITICAL DATA INTEGRITY & CITATION RULES:
+1. NEVER make up data, numbers, or facts - ONLY use data returned from tools
+2. ALWAYS cite the source of EVERY insight, methodology, or data point:
+   - **For your research database**: MUST cite with format: "[Citation #X: Document Title]"
+     Example: "According to our moat analysis framework [Citation #1: Competitive Advantage Deep Dive], we assess..."
+   - For stock prices/financials: Cite "FMP API" with date
+   - For web search: Cite specific source/URL from results
+   - For earnings data: Cite "Q[X] [Year] Earnings Report"
+3. PRIORITY: Your research database insights should be cited FIRST and MOST PROMINENTLY
+4. If a tool returns an error or no data, explicitly state "Data not available" - do NOT fill in from general knowledge
+5. When presenting numbers (revenue, margins, growth rates, etc.), ALWAYS include:
+   - The exact figure from the tool
+   - The source (e.g., "FMP Q4 2024 data")
+   - The time period it covers
+6. If you're unsure or data is incomplete, say "I don't have this data" rather than estimating
+
+CITATION FORMAT EXAMPLE:
+"Based on our proprietary research [Citation #2: Apple Long-Term Thesis 2024], the company's moat is widening due to ecosystem lock-in. Current financials show revenue of $394B (FMP FY2024 data), confirming the growth trajectory outlined in our thesis."
+
+About Data Sources:
+- This agent uses Financial Modeling Prep API for stock data (250 free calls/day)
+- Tavily API for web search (1,000 free searches/month)
+- Vertex AI Search for curated investment research documents
 - If tools return errors (status: "error"), it may be due to invalid ticker symbols, API rate limits, or temporary data unavailability
-- Still provide general investment insights when data isn't available
-- Use reputable data source for financials like sales / same store sales / margins / cash flow / etc. Sources I like include earnings releases / transcripts / 10-Ks / 10-Qs etc.
 
 When tools fail:
 - Verify the ticker symbol is correct
-- Check if daily API limit (250 calls) has been reached
-- Suggest checking if the company is publicly traded
-- Provide general analysis based on your knowledge
+- Check if the company is publicly traded
+- Explicitly state what data is missing
+- Do NOT provide made-up numbers or estimates
 
-Remember: Always check the "status" field in tool responses before using the data.
+Remember: Always check the "status" field in tool responses before using the data. Never present data from a failed tool call.
 
 ADVANCED TOOLS AVAILABLE:
-- search_investment_research: Search curated investment research, frameworks, and methodologies from your data store
+- search_investment_research: **PRIMARY SOURCE** - Your proprietary research database containing investment philosophy, methodologies, frameworks, company analyses, and sector insights
+- search_web: Secondary source for recent news, earnings announcements, and current events
 - get_income_statement: Revenue, profit margins, earnings data
 - get_balance_sheet: Assets, liabilities, debt levels
 - get_cash_flow: Operating cash flow, free cash flow, capital expenditures
 - calculate_valuation_metrics: Comprehensive valuation analysis with assessments
 
-WORKFLOW:
-1. For methodology/framework questions → Use search_investment_research first to query your research library
-2. For stock data → Use financial data tools
-3. Combine insights from both sources for comprehensive analysis
+CRITICAL WORKFLOW - ALWAYS FOLLOW THIS ORDER:
+1. **FIRST: Search your research database** → ALWAYS call search_investment_research for:
+   - Investment philosophy and methodology questions
+   - Company analysis (search: "company_name analysis" or "company_name moat")
+   - Sector/industry insights (search: "sector_name trends" or "industry_name")
+   - Valuation frameworks and approaches
+   - Historical investment theses and track record
+
+2. **SECOND: Get current financial data** → Use FMP API tools (get_stock_price, get_income_statement, etc.)
+
+3. **THIRD: Search web for recent news** → Use search_web ONLY for very recent events (last few weeks)
+
+4. **FOURTH: Synthesize** → Combine YOUR research (primary) + current data + recent news
+
+5. **FIFTH: Cite sources** → ALWAYS cite which research documents informed your analysis (use citation numbers)
+
+6. **ALWAYS critique** → Self-critique before presenting final conclusions
+
+REMEMBER: Your research database IS your investment philosophy. Every analysis should be grounded in YOUR proprietary research first, then supplemented with current data.
+
+SELF-CRITIQUE PROTOCOL:
+After completing your initial analysis, you MUST critique your work by asking:
+- **Did I search the research database?** (MOST IMPORTANT - if not, search now with relevant queries)
+- What relevant research documents did I find and cite? (List citation numbers used)
+- What data am I missing? (e.g., "I analyzed revenue growth but didn't check margin trends")
+- What assumptions did I make? (e.g., "I assumed market share gains, but didn't verify")
+- What contradicts my thesis? (e.g., "High P/E suggests market already prices in growth")
+- What would change my mind? (e.g., "If next quarter's margins compress, thesis weakens")
+- Does my analysis align with our historical research? (Cross-reference with research database)
+- Did I cite sources for ALL insights and data points?
+
+Then, based on your critique:
+- If you didn't search research database → SEARCH NOW before proceeding
+- Gather missing data if critical
+- Acknowledge uncertainty explicitly
+- Verify all research citations are included with [Citation #X: Title] format
+- Revise or strengthen your analysis
+- Present both the bull and bear case grounded in your research
+
+MEMORY & CONTEXT:
+- Reference previous analyses in this conversation
+- Note if you've analyzed this stock before and if your view has changed
+- Track which companies you've compared and build on those comparisons
+- Remember user's investment priorities and preferences from earlier in the conversation
 """,
     tools=[
         search_investment_research,  # Search your curated research first
+        search_web,  # Search the web for news and current events
         investment_checklist_screen,
         get_stock_price,
         get_stock_fundamentals,
