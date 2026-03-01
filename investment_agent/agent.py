@@ -10,25 +10,57 @@ from typing import Dict, Any
 from datetime import datetime
 import requests
 from google.adk.agents.llm_agent import Agent
-from google.cloud import discoveryengine_v1beta as discoveryengine
+from google.cloud import discoveryengine_v1 as discoveryengine
+from google.oauth2 import service_account
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Handle Google Cloud credentials for production (Render)
-# If GOOGLE_APPLICATION_CREDENTIALS_JSON is set, write it to a temp file
+# Handle Google Cloud credentials
+# Option 1: Direct file path via GOOGLE_APPLICATION_CREDENTIALS (for local dev)
+# Option 2: JSON string via GOOGLE_APPLICATION_CREDENTIALS_JSON (for production/Render)
 credentials_json = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+gcp_credentials = None
+
 if credentials_json:
     try:
-        # Create a temporary file to store credentials
+        # Create a temporary file to store credentials from JSON string
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
             f.write(credentials_json)
             credentials_path = f.name
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
-        print(f"✓ Google Cloud credentials loaded from environment variable")
+        # Load credentials with proper scopes and quota project
+        gcp_credentials = service_account.Credentials.from_service_account_file(
+            credentials_path,
+            scopes=['https://www.googleapis.com/auth/cloud-platform']
+        )
+        # Set quota project to the datastore's project
+        project_id = os.getenv('GCP_PROJECT_ID')
+        if project_id:
+            gcp_credentials = gcp_credentials.with_quota_project(project_id)
+        print(f"✓ Google Cloud credentials loaded from environment variable (JSON)")
     except Exception as e:
         print(f"⚠ Warning: Could not process GCP credentials: {e}")
+elif credentials_path:
+    # Ensure the env var is set (dotenv may have loaded it)
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+    if os.path.exists(credentials_path):
+        # Load credentials with proper scopes and quota project
+        gcp_credentials = service_account.Credentials.from_service_account_file(
+            credentials_path,
+            scopes=['https://www.googleapis.com/auth/cloud-platform']
+        )
+        # Set quota project to the datastore's project
+        project_id = os.getenv('GCP_PROJECT_ID')
+        if project_id:
+            gcp_credentials = gcp_credentials.with_quota_project(project_id)
+        print(f"✓ Google Cloud credentials loaded from file: {credentials_path}")
+    else:
+        print(f"⚠ Warning: Credentials file not found: {credentials_path}")
+else:
+    print("ℹ No Google Cloud credentials configured")
 
 # Configure Vertex AI Search to connect to your data store
 # Get configuration from environment variables
@@ -39,12 +71,13 @@ VERTEX_DATA_STORE_ID = os.getenv('VERTEX_DATA_STORE_ID')
 # Initialize Discovery Engine client for direct API access
 vertex_search_available = False
 
-if VERTEX_PROJECT_ID and VERTEX_DATA_STORE_ID:
+if VERTEX_PROJECT_ID and VERTEX_DATA_STORE_ID and gcp_credentials:
     try:
-        # Test connection by creating client with regional endpoint
+        # Test connection by creating client with regional endpoint and explicit credentials
         client_options = {
             "api_endpoint": f"{VERTEX_LOCATION}-discoveryengine.googleapis.com"}
         test_client = discoveryengine.SearchServiceClient(
+            credentials=gcp_credentials,
             client_options=client_options)
         vertex_search_available = True
         print(f"✓ Vertex AI Search initialized successfully")
@@ -55,6 +88,8 @@ if VERTEX_PROJECT_ID and VERTEX_DATA_STORE_ID:
         print(f"⚠ Warning: Could not initialize Vertex AI Search: {e}")
         print(f"  Agent will work without research context grounding.")
         vertex_search_available = False
+elif not gcp_credentials:
+    print("ℹ Vertex AI Search not available - no credentials configured.")
 else:
     print("ℹ Vertex AI Search not configured.")
     print("  Set GCP_PROJECT_ID, VERTEX_LOCATION, and VERTEX_DATA_STORE_ID in .env to enable.")
@@ -78,61 +113,105 @@ def search_investment_research(query: str) -> Dict[str, Any]:
         }
 
     try:
-        # Create client with regional endpoint for 'us' location
+        # Create client with regional endpoint and explicit credentials
         client_options = {
             "api_endpoint": f"{VERTEX_LOCATION}-discoveryengine.googleapis.com"}
         client = discoveryengine.SearchServiceClient(
+            credentials=gcp_credentials,
             client_options=client_options)
 
-        # Build serving config path
-        serving_config = client.serving_config_path(
-            project=VERTEX_PROJECT_ID,
-            location=VERTEX_LOCATION,
-            data_store=VERTEX_DATA_STORE_ID,
-            serving_config="default_search",
+        # Build serving config path manually to ensure correct project ID is used
+        serving_config = f"projects/{VERTEX_PROJECT_ID}/locations/{VERTEX_LOCATION}/collections/default_collection/dataStores/{VERTEX_DATA_STORE_ID}/servingConfigs/default_search"
+
+        # Create search request with content extraction enabled
+        content_search_spec = discoveryengine.SearchRequest.ContentSearchSpec(
+            snippet_spec=discoveryengine.SearchRequest.ContentSearchSpec.SnippetSpec(
+                return_snippet=True,
+                max_snippet_count=3,
+            ),
+            extractive_content_spec=discoveryengine.SearchRequest.ContentSearchSpec.ExtractiveContentSpec(
+                max_extractive_answer_count=1,
+                max_extractive_segment_count=3,
+            ),
+            summary_spec=discoveryengine.SearchRequest.ContentSearchSpec.SummarySpec(
+                summary_result_count=5,
+                include_citations=True,
+            ),
         )
 
-        # Create search request
         request = discoveryengine.SearchRequest(
             serving_config=serving_config,
             query=query,
-            page_size=10,  # Get top 10 results for comprehensive research coverage
+            page_size=10,
+            content_search_spec=content_search_spec,
         )
 
         # Execute search
         response = client.search(request)
 
-        # Parse results with enhanced citation information
+        # Get the AI-generated summary if available
+        summary_text = ""
+        if response.summary and response.summary.summary_text:
+            summary_text = response.summary.summary_text
+
+        # Parse results with enhanced content extraction
         results = []
         for idx, result in enumerate(response.results, 1):
             doc_data = result.document.derived_struct_data
 
-            # Extract all available snippets for richer content
+            # Extract content from multiple sources
+            content_parts = []
+
+            # Try extractive_answers first (most relevant)
+            extractive_answers = doc_data.get('extractive_answers', [])
+            for answer in extractive_answers:
+                if hasattr(answer, 'get'):
+                    content = answer.get('content', '')
+                    if content:
+                        content_parts.append(content)
+
+            # Try extractive_segments
+            extractive_segments = doc_data.get('extractive_segments', [])
+            for segment in extractive_segments:
+                if hasattr(segment, 'get'):
+                    content = segment.get('content', '')
+                    if content and content not in content_parts:
+                        content_parts.append(content)
+
+            # Try snippets
             snippets = doc_data.get('snippets', [])
-            combined_content = ' ... '.join([s.get('snippet', '') for s in snippets if s.get('snippet')])
+            for snippet in snippets:
+                if hasattr(snippet, 'get'):
+                    content = snippet.get('snippet', '')
+                    if content and content not in content_parts:
+                        content_parts.append(content)
+
+            # Combine all content
+            combined_content = ' ... '.join(content_parts) if content_parts else ''
 
             results.append({
                 "citation_number": idx,
                 "title": doc_data.get('title', 'Untitled Research Document'),
-                "snippet": combined_content if combined_content else 'No preview available',
+                "content": combined_content if combined_content else 'Content available in source document',
                 "link": doc_data.get('link', ''),
-                "source": "Vertex AI Search - Proprietary Research Database"
+                "source": "Proprietary Research Database"
             })
 
         if not results:
             return {
                 "status": "success",
                 "query": query,
-                "message": "No results found in your research database for this query. Consider using search_web for external sources.",
+                "message": "No results found in your research database for this query.",
                 "results": []
             }
 
         return {
             "status": "success",
             "query": query,
+            "summary": summary_text if summary_text else None,
             "results_count": len(results),
             "results": results,
-            "note": "IMPORTANT: These are YOUR proprietary research documents. Always cite the document title and citation number when using insights from these results."
+            "note": "These are proprietary research documents. Cite the document title when using insights."
         }
 
     except Exception as e:

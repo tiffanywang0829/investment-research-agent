@@ -4,6 +4,15 @@ venv/
 __pycache__/
 *.pyc
 
+# Credentials and secrets
+google_app_cred.json
+*.json.key
+*-credentials.json
+*service-account*.json
+
+# Debug files
+debug_*.py
+
 # ADK
 .adk/
 

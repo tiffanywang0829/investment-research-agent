@@ -10,20 +10,20 @@ print("=" * 80)
 print()
 
 # Test 1: Search for 4-point checklist
-print("Test 1: Searching for '4-point investment checklist'...")
-result = search_investment_research("4-point investment checklist")
+print("Test 1: Searching for 'Jack Zhang'...")
+result = search_investment_research("Jack Zhang")
 print(json.dumps(result, indent=2))
 print()
 
 # Test 2: Search for velocity of change
-print("Test 2: Searching for 'velocity of change'...")
-result = search_investment_research("velocity of change")
+print("Test 2: Searching for 'Intensity of Competition'...")
+result = search_investment_research("Intensity of Competition")
 print(json.dumps(result, indent=2))
 print()
 
 # Test 3: Search for sustainability criteria
-print("Test 3: Searching for 'sustainability criteria'...")
-result = search_investment_research("sustainability criteria")
+print("Test 3: Searching for 'P and L analysis'...")
+result = search_investment_research("P and L analysis")
 print(json.dumps(result, indent=2))
 print()
 
